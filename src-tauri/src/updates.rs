@@ -123,7 +123,7 @@ async fn run(
     .resizable(false)
     .maximizable(false)
     .closable(false)
-    .on_navigation(|url| policy::is_local(url))
+    .on_navigation(policy::is_local)
     .build()?;
     let mut downloaded = 0u64;
     let mut last_percent = 101u64;
@@ -133,7 +133,7 @@ async fn run(
         if let Some(percent) = percent {
             if percent != last_percent {
                 last_percent = percent;
-                let _ = window.eval(&format!("document.getElementById('progress').value={percent};document.getElementById('message').textContent='Baixando atualização: {percent}%';"));
+                let _ = window.eval(format!("document.getElementById('progress').value={percent};document.getElementById('message').textContent='Baixando atualização: {percent}%';"));
             }
         }
     }, || {

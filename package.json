@@ -10,10 +10,11 @@
     "dev": "tauri dev"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Revenue OS",
+  "license": "UNLICENSED",
   "type": "commonjs",
   "devDependencies": {
     "@tauri-apps/cli": "2.12.1"
-  }
+  },
+  "private": true
 }

@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
-const pkg = JSON.parse(await readFile("package.json", "utf8"));
-const config = JSON.parse(await readFile("src-tauri/tauri.conf.json", "utf8"));
-const cargo = await readFile("src-tauri/Cargo.toml", "utf8");
+const desktopRoot = new URL("../", import.meta.url);
+const pkg = JSON.parse(await readFile(new URL("package.json", desktopRoot), "utf8"));
+const config = JSON.parse(await readFile(new URL("src-tauri/tauri.conf.json", desktopRoot), "utf8"));
+const cargo = await readFile(new URL("src-tauri/Cargo.toml", desktopRoot), "utf8");
 const rustVersion = cargo.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
 if (pkg.version !== config.version || rustVersion !== config.version) throw new Error("Package, Tauri and Rust versions must agree");
 if (!/^\d+\.\d+\.\d+$/.test(config.version)) throw new Error("Only stable semantic versions can be published");

@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod updates;
-use revenue_os_desktop::policy;
+use revenue_os_desktop::{connection::RequestGeneration, policy};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tauri::{
@@ -12,6 +12,7 @@ use tauri::{
 use tauri_plugin_dialog::DialogExt;
 
 static POPUP_ID: AtomicU64 = AtomicU64::new(0);
+static CONNECTION_REQUESTS: RequestGeneration = RequestGeneration::new();
 // Preserve WebView2's actual network user agent for provider compatibility.
 // This page-only UI marker grants no authentication or native permissions.
 const DESKTOP_MARKER: &str = "Object.defineProperty(navigator, 'userAgent', {value: navigator.userAgent + ' RevenueOSDesktop'});";
@@ -27,6 +28,7 @@ fn navigation(url: &url::Url) -> bool {
 }
 
 fn connect(app: tauri::AppHandle) {
+    let generation = CONNECTION_REQUESTS.begin();
     tauri::async_runtime::spawn(async move {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(15))
@@ -41,16 +43,22 @@ fn connect(app: tauri::AppHandle) {
                 .unwrap_or(false),
             Err(_) => false,
         };
-        if let Some(window) = app.get_webview_window("main") {
-            let target = if reachable {
-                format!("{}/dashboard", policy::APP_ORIGIN)
-            } else {
-                "http://tauri.localhost/offline.html".to_owned()
-            };
-            if let Ok(url) = target.parse() {
-                let _ = window.navigate(url);
+        let navigation_app = app.clone();
+        // Check on the UI thread so an already queued navigation wins over this response.
+        let _ = app.run_on_main_thread(move || {
+            if let Some(window) = navigation_app.get_webview_window("main") {
+                let target = if reachable {
+                    format!("{}/dashboard", policy::APP_ORIGIN)
+                } else {
+                    "http://tauri.localhost/offline.html".to_owned()
+                };
+                if let Ok(url) = target.parse() {
+                    if CONNECTION_REQUESTS.is_current(generation) {
+                        let _ = window.navigate(url);
+                    }
+                }
             }
-        }
+        });
     });
 }
 
@@ -79,7 +87,12 @@ fn main() {
                 .title("Revenue OS")
                 .inner_size(1360.0, 900.0).min_inner_size(900.0, 640.0)
                 .initialization_script(DESKTOP_MARKER)
-                .on_navigation(navigation)
+                .on_navigation(|url| {
+                    if policy::is_app(url) || policy::is_meta(url) {
+                        CONNECTION_REQUESTS.invalidate();
+                    }
+                    navigation(url)
+                })
                 .on_new_window(move |url, features| {
                     if policy::is_app(&url) || policy::is_meta(&url) || url.as_str() == "about:blank" {
                         let label = format!("authorization-{}", POPUP_ID.fetch_add(1, Ordering::Relaxed));
@@ -103,7 +116,7 @@ fn main() {
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
             "retry" => connect(app.clone()),
-            "dashboard" => { if let Some(window) = app.get_webview_window("main") { let _ = window.navigate(format!("{}/dashboard", policy::APP_ORIGIN).parse().expect("constant application URL")); } },
+            "dashboard" => { CONNECTION_REQUESTS.invalidate(); if let Some(window) = app.get_webview_window("main") { let _ = window.navigate(format!("{}/dashboard", policy::APP_ORIGIN).parse().expect("constant application URL")); } },
             "update" => updates::check(app.clone(), true),
             "about" => { app.dialog().message(format!("Revenue OS para Windows\nVersão {}\n\nUse sua conta existente. Requer conexão com a internet.\nAtualizações: Aplicativo → Verificar atualizações.", app.package_info().version)).title("Sobre o Revenue OS").show(|_| {}); },
             "quit" => app.exit(0),

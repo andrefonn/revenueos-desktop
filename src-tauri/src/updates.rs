@@ -9,6 +9,7 @@ use std::{
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_window_state::AppHandleExt;
 
 #[derive(Default)]
 pub struct UpdateState {
@@ -72,11 +73,19 @@ async fn run(
     manual: bool,
     report_errors: &AtomicBool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let state_app = app.clone();
     let updater = app
         .updater_builder()
         .timeout(Duration::from_secs(25))
+        .on_before_exit(move || {
+            let _ = state_app.save_window_state(
+                tauri_plugin_window_state::StateFlags::POSITION
+                    | tauri_plugin_window_state::StateFlags::SIZE
+                    | tauri_plugin_window_state::StateFlags::MAXIMIZED,
+            );
+        })
         .build()?;
-    let Some(update) = updater.check().await? else {
+    let Some(mut update) = updater.check().await? else {
         if manual {
             message(
                 app,
@@ -92,6 +101,9 @@ async fn run(
     if !policy::is_update(&update.download_url) {
         return Err("Untrusted update asset URL".into());
     }
+    // Checking should fail quickly; downloading a signed installer on a slower
+    // connection needs a separate, larger deadline.
+    update.timeout = Some(Duration::from_secs(600));
     let accepted = app.dialog()
         .message(format!("A versão {} está disponível.\n\nA atualização será baixada e sua assinatura será verificada. Depois, o Revenue OS será fechado para instalar e reabrir. Salve seu trabalho antes de continuar.", update.version))
         .title("Atualização disponível")

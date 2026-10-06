@@ -39,7 +39,8 @@
           "PortugueseBR"
         ],
         "displayLanguageSelector": false,
-        "startMenuFolder": "Revenue OS"
+        "startMenuFolder": "Revenue OS",
+        "installerHooks": "installer-hooks.nsh"
       }
     }
   },

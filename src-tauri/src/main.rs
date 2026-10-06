@@ -86,6 +86,7 @@ fn main() {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Revenue OS")
                 .inner_size(1360.0, 900.0).min_inner_size(900.0, 640.0)
+                .prevent_overflow()
                 .initialization_script(DESKTOP_MARKER)
                 .on_navigation(|url| {
                     if policy::is_app(url) || policy::is_meta(url) {

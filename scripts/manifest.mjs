@@ -7,6 +7,10 @@ export const INSTALLER_NAME = "RevenueOS-Windows-x64-Setup.exe";
 export function createManifest({ version, tag, signature, publishedAt }) {
   if (!/^\d+\.\d+\.\d+$/.test(version) || tag !== `v${version}`) throw new Error("Release tag must match the stable application version");
   if (typeof signature !== "string" || !signature.trim()) throw new Error("Missing updater signature");
+  const signatureText = Buffer.from(signature.trim(), "base64").toString("utf8");
+  const comment = signatureText.match(/^trusted comment: ([^\r\n]*)/m)?.[1];
+  const signedVersion = comment?.split("\t").find((field) => field.startsWith("version:"))?.slice("version:".length);
+  if (signedVersion !== version) throw new Error("Signature metadata and release version must agree");
   if (!Number.isFinite(Date.parse(publishedAt))) throw new Error("Invalid publication date");
   return {
     version,
